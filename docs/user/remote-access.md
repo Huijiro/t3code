@@ -158,7 +158,9 @@ reachable or convert HTTP to HTTPS.
 
 For a plain HTTP LAN endpoint, use the direct pairing URL in a browser that can
 open it, or pair from the desktop app. On mobile, an IP address entered without a
-scheme uses HTTP, so include `https://` when your server uses HTTPS.
+scheme uses HTTP, so include `https://` when your server uses HTTPS. The Android
+app trusts certificates from your own certificate authority once you install that
+CA in Android's security settings as a user certificate.
 
 ## Desktop-managed SSH
 

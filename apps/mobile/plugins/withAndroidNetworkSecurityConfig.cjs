@@ -26,7 +26,6 @@ function withNetworkSecurityConfigManifest(config) {
     }
 
     application.$ ??= {};
-    application.$["android:usesCleartextTraffic"] = "true";
     application.$["android:networkSecurityConfig"] = "@xml/network_security_config";
 
     return nextConfig;
