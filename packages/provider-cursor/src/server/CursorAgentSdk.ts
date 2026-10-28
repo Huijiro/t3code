@@ -76,6 +76,10 @@ export interface CursorAgentSdkSendInput<Error> {
   readonly onDelta?: (update: InteractionUpdate) => Effect.Effect<void, Error>;
 }
 
+export interface CursorAgentSdkSummarizeInput<Error> {
+  readonly onDelta?: (update: InteractionUpdate) => Effect.Effect<void, Error>;
+}
+
 export interface CursorAgentSdkRun {
   readonly runId: string;
   readonly agentId: string;
@@ -87,6 +91,9 @@ export interface CursorAgentSdkSession {
   readonly agentId: string;
   readonly send: <Error>(
     input: CursorAgentSdkSendInput<Error>,
+  ) => Effect.Effect<CursorAgentSdkRun, CursorAgentSdkRunnerError>;
+  readonly summarize: <Error>(
+    input?: CursorAgentSdkSummarizeInput<Error>,
   ) => Effect.Effect<CursorAgentSdkRun, CursorAgentSdkRunnerError>;
   readonly listMessages: Effect.Effect<ReadonlyArray<AgentMessage>, CursorAgentSdkRunnerError>;
   readonly close: Effect.Effect<void, CursorAgentSdkRunnerError>;
@@ -124,6 +131,8 @@ export interface CursorAgentSdkLoggedAgentOptions {
 export interface CursorAgentSdkLoggedSendOptions {
   readonly model?: SendOptions["model"];
   readonly mode?: SendOptions["mode"];
+  readonly hasMcpServers?: boolean;
+  readonly mcpServerNames?: ReadonlyArray<string>;
   readonly local?: {
     readonly force?: boolean;
     readonly hasCustomTools?: boolean;
@@ -157,6 +166,13 @@ export type CursorAgentSdkProtocolLogEvent =
         readonly type: "run.start";
         readonly message: string | SDKUserMessage;
         readonly options: CursorAgentSdkLoggedSendOptions;
+      };
+    }
+  | {
+      readonly direction: "outgoing";
+      readonly stage: "decoded";
+      readonly payload: {
+        readonly type: "run.summarize";
       };
     }
   | {
@@ -283,9 +299,12 @@ export function loggedCursorSendOptions(
   if (options === undefined) {
     return {};
   }
+  const mcpServerNames =
+    options.mcpServers === undefined ? undefined : Object.keys(options.mcpServers).toSorted();
   return {
     ...(options.model === undefined ? {} : { model: options.model }),
     ...(options.mode === undefined ? {} : { mode: options.mode }),
+    ...(mcpServerNames === undefined ? {} : { hasMcpServers: true, mcpServerNames }),
     ...(options.local === undefined
       ? {}
       : {
@@ -296,6 +315,25 @@ export function loggedCursorSendOptions(
         }),
     ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
   };
+}
+
+function summaryMessageToInteractionUpdate(message: {
+  readonly type: string;
+  readonly status?: string;
+  readonly fallback?: boolean;
+}): InteractionUpdate | undefined {
+  if (message.type !== "summary") return undefined;
+  if (message.status === "running") {
+    return { type: "summary-started" };
+  }
+  if (message.status === "completed" || message.status === "error") {
+    return {
+      type: "summary-completed",
+      ...(message.status === "error" ? { failed: true } : {}),
+      ...(message.fallback === true ? { fallback: true } : {}),
+    };
+  }
+  return undefined;
 }
 
 function makeCursorAgentSdkProtocolLogger(input: {
@@ -398,6 +436,101 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
         ...(input.options.local?.store === undefined ? {} : { store: input.options.local.store }),
       };
       let abandonedRunRecoveryAvailable = input.operation === "resume";
+
+      const wrapRun = Effect.fnUntraced(function* <Error>(input: {
+        readonly run: Awaited<ReturnType<typeof agent.send>>;
+        readonly method: string;
+        readonly onDelta?: (update: InteractionUpdate) => Effect.Effect<void, Error>;
+        readonly pumpStream?: boolean;
+      }) {
+        const context = yield* Effect.context();
+        let callbackFailure: { readonly cause: unknown } | undefined;
+        let callbackChain = Promise.resolve();
+        const dispatchUpdate = (update: InteractionUpdate): Promise<void> => {
+          callbackChain = callbackChain
+            .then(() => {
+              if (callbackFailure !== undefined) {
+                return;
+              }
+              return Effect.runPromiseWith(context)(
+                log({
+                  direction: "incoming",
+                  stage: "decoded",
+                  payload: {
+                    type: "interaction.update",
+                    runId: input.run.id,
+                    update,
+                  },
+                }).pipe(Effect.andThen(input.onDelta?.(update) ?? Effect.void)),
+              );
+            })
+            .catch((cause) => {
+              callbackFailure ??= { cause };
+            });
+          return callbackChain;
+        };
+
+        if (input.pumpStream) {
+          callbackChain = callbackChain.then(async () => {
+            for await (const message of input.run.stream()) {
+              const update = summaryMessageToInteractionUpdate(message);
+              if (update !== undefined) {
+                await dispatchUpdate(update);
+              }
+            }
+          });
+        }
+
+        return {
+          runId: input.run.id,
+          agentId: input.run.agentId,
+          wait: Effect.tryPromise({
+            try: async () => {
+              const result = await input.run.wait();
+              await callbackChain;
+              if (callbackFailure !== undefined) {
+                throw callbackFailure.cause;
+              }
+              return result;
+            },
+            catch: (cause) => runnerError(cause, `${input.method}.wait`),
+          }).pipe(
+            Effect.tap((result) =>
+              log({
+                direction: "incoming",
+                stage: "decoded",
+                payload: {
+                  type: "run.completed",
+                  result,
+                },
+              }),
+            ),
+          ),
+          cancel: log({
+            direction: "outgoing",
+            stage: "decoded",
+            payload: {
+              type: "run.cancel",
+              runId: input.run.id,
+            },
+          }).pipe(
+            Effect.andThen(
+              Effect.tryPromise({
+                try: async () => {
+                  try {
+                    await input.run.cancel();
+                  } catch (cause) {
+                    if (!isCursorCancellationError(cause)) {
+                      throw cause;
+                    }
+                  }
+                },
+                catch: (cause) => runnerError(cause, `${input.method}.cancel`),
+              }),
+            ),
+          ),
+        } satisfies CursorAgentSdkRun;
+      });
 
       return {
         agentId: agent.agentId,
@@ -554,6 +687,32 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
               ),
             ),
           } satisfies CursorAgentSdkRun;
+        }),
+        summarize: Effect.fn("CursorAgentSdkSession.summarize")(function* (summarizeInput) {
+          yield* log({
+            direction: "outgoing",
+            stage: "decoded",
+            payload: { type: "run.summarize" },
+          });
+          const run = yield* Effect.tryPromise({
+            try: () => agent.summarize(),
+            catch: (cause) => runnerError(cause, "run.summarize"),
+          });
+          yield* log({
+            direction: "incoming",
+            stage: "decoded",
+            payload: {
+              type: "run.started",
+              runId: run.id,
+              agentId: run.agentId,
+            },
+          });
+          return yield* wrapRun({
+            run,
+            method: "run.summarize",
+            ...(summarizeInput?.onDelta === undefined ? {} : { onDelta: summarizeInput.onDelta }),
+            pumpStream: true,
+          });
         }),
         listMessages: log({
           direction: "outgoing",

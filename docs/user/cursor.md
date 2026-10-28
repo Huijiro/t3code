@@ -15,6 +15,12 @@ The adapter currently uses the SDK's local-agent runtime so runs operate in the 
 workspace. Cursor cloud agents need repository and cloud-environment configuration that T3 Code does
 not expose yet.
 
+Custom Cursor MCP servers and plugins are not configured in T3 Code. They load from the environment
+machine's Cursor config when the agent opens: project `.cursor/mcp.json`, user `~/.cursor/mcp.json`,
+and installed plugins under `~/.cursor/plugins`, via the SDK `settingSources` layers. OAuth MCP
+logins are per workspace folder (`agent mcp login`); a login from the Cursor desktop app is not
+reused. After you add or change skills, plugins, or MCP servers, use **Restart agent session**.
+
 ## Sign in
 
 Choose **Sign in**, then open the sign-in page and complete it in your browser. T3 Code
@@ -36,9 +42,10 @@ The adapter supports:
 - creating and resuming local Cursor agent threads;
 - changing the model and model parameters between turns;
 - assistant text, reasoning, tool activity, plans, and todo streaming;
-- thread-scoped T3 Code MCP tools;
+- thread-scoped T3 Code MCP tools alongside ambient Cursor MCP/plugins from disk;
 - image attachments;
 - interruption, queued app messages, and orchestrator-owned interrupt/restart steering;
+- native conversation compaction through `agent.summarize()`;
 - provider conversation snapshots through `Agent.messages.list()`;
 - Cursor `task` subagents, projected as read-only child app threads with their tool activity and
   final result.

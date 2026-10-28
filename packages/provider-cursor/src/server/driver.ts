@@ -1,3 +1,4 @@
+import type { SDKModel } from "@cursor/sdk";
 import {
   ProviderDriverKind,
   ProviderSetupError,
@@ -7,6 +8,7 @@ import { CursorSettings } from "../settings.ts";
 import * as Effect from "effect/Effect";
 import * as Crypto from "effect/Crypto";
 import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as HttpClient from "effect/http/HttpClient";
@@ -165,11 +167,13 @@ export const CursorDriver: ProviderDriver<
       });
 
     let catalogModels: ReadonlyArray<ServerProviderModel> = [];
+    let catalogSdkModels: ReadonlyArray<SDKModel> = [];
     const orchestrationAdapter = yield* makeCursorAdapterV2({
       instanceId,
       settings: effectiveConfig,
       environment: processEnv,
       getModels: () => catalogModels,
+      getSdkModels: () => catalogSdkModels,
     }).pipe(
       Effect.provideService(CursorAgentSdk.CursorAgentSdkRunner, {
         ...sdkRunner,
@@ -252,10 +256,17 @@ export const CursorDriver: ProviderDriver<
       Effect.provideService(CursorKeychain.CursorKeychain, keychain),
       Effect.map(stampSnapshot),
       Effect.tap((provider) =>
-        Effect.sync(() => {
+        Effect.gen(function* () {
           // A failed check lists only custom models, so keep the last loaded catalog.
           if (provider.models.some((model) => !model.isCustom)) {
             catalogModels = provider.models;
+          }
+          const apiKey = yield* auth.readApiKey.pipe(Effect.orElseSucceed(() => undefined));
+          if (apiKey === undefined || apiKey.trim() === "") return;
+          const catalog = yield* CursorSdkCatalog.CursorSdkCatalog;
+          const snapshot = yield* catalog.read(apiKey).pipe(Effect.option);
+          if (Option.isSome(snapshot)) {
+            catalogSdkModels = snapshot.value.models;
           }
         }),
       ),
