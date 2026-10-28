@@ -58,6 +58,10 @@ in the receiving app. Connection settings are under **Settings → Environments*
 on web and desktop and **Settings → Environments** on mobile. A loopback address
 such as `127.0.0.1` reaches only the device opening the link.
 
+If your HTTPS endpoint uses a certificate from your own certificate authority,
+install that CA in Android's security settings as a user certificate; the Android
+app then trusts it.
+
 Pairing authorizes that device for future connections. Use a fresh one-time link
 for each new device; you do not need the original token to reconnect. Links
 created in Settings can only be copied from the client that created them while
@@ -159,10 +163,6 @@ reachable or convert HTTP to HTTPS.
 For a plain HTTP LAN endpoint, use the direct pairing URL in a browser that can
 open it, or pair from the desktop app. On mobile, an IP address entered without a
 scheme uses HTTP, so include `https://` when your server uses HTTPS.
-
-If your HTTPS endpoint uses a certificate from your own certificate authority,
-install that CA in Android's security settings as a user certificate; the Android
-app then trusts it.
 
 ## Desktop-managed SSH
 
