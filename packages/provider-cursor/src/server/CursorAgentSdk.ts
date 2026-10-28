@@ -470,16 +470,21 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
           return callbackChain;
         };
 
-        if (input.pumpStream) {
-          callbackChain = callbackChain.then(async () => {
-            for await (const message of input.run.stream()) {
-              const update = summaryMessageToInteractionUpdate(message);
-              if (update !== undefined) {
-                await dispatchUpdate(update);
-              }
-            }
-          });
-        }
+        // Keep the stream pump off callbackChain — awaiting dispatchUpdate from inside a
+        // callbackChain task deadlocks when the next link waits for that same task to finish.
+        const pumpDone =
+          input.pumpStream === true
+            ? (async () => {
+                for await (const message of input.run.stream()) {
+                  const update = summaryMessageToInteractionUpdate(message);
+                  if (update !== undefined) {
+                    await dispatchUpdate(update);
+                  }
+                }
+              })().catch((cause) => {
+                callbackFailure ??= { cause };
+              })
+            : Promise.resolve();
 
         return {
           runId: input.run.id,
@@ -487,7 +492,7 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
           wait: Effect.tryPromise({
             try: async () => {
               const result = await input.run.wait();
-              await callbackChain;
+              await Promise.all([callbackChain, pumpDone]);
               if (callbackFailure !== undefined) {
                 throw callbackFailure.cause;
               }
