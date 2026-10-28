@@ -84,6 +84,15 @@ export function cursorSdkMaxModeForParams(
   return matching.length > 0 && matching.every((variant) => variant.isMaxMode === true);
 }
 
+function cursorSdkParamsAdmitMaxMode(
+  model: Pick<SDKModel, "variants">,
+  params: ReadonlyArray<ModelParameterValue> | undefined,
+): boolean {
+  return (model.variants ?? []).some(
+    (variant) => variantMatchesParams(variant, params) && variant.isMaxMode === true,
+  );
+}
+
 export function cursorSdkModelOffersOptionalMaxMode(model: Pick<SDKModel, "variants">): boolean {
   const variants = model.variants ?? [];
   if (
@@ -128,9 +137,12 @@ export function cursorSdkModelSelection(
           value: String(option.value),
         }));
   const catalogModel = sdkModels?.find((model) => model.id === id);
-  const maxMode =
-    userRequestedMaxMode ||
-    (catalogModel !== undefined && cursorSdkMaxModeForParams(catalogModel, params));
+  const forcedMaxMode =
+    catalogModel !== undefined && cursorSdkMaxModeForParams(catalogModel, params);
+  const optionalMaxMode =
+    userRequestedMaxMode &&
+    (catalogModel === undefined || cursorSdkParamsAdmitMaxMode(catalogModel, params));
+  const maxMode = forcedMaxMode || optionalMaxMode;
   return {
     id,
     ...(params === undefined ? {} : { params }),

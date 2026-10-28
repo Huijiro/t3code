@@ -73,6 +73,10 @@ describe("cursorSdkModelSelection", () => {
             isMaxMode: true,
             params: [{ id: "fast", value: "false" }],
           },
+          {
+            displayName: "Composer Fast",
+            params: [{ id: "fast", value: "true" }],
+          },
         ],
       },
     ];
@@ -108,6 +112,22 @@ describe("cursorSdkModelSelection", () => {
     ).toEqual({
       id: "composer-2",
       params: [{ id: "fast", value: "false" }],
+    });
+    expect(
+      cursorSdkModelSelection(
+        {
+          instanceId,
+          model: "composer-2",
+          options: [
+            { id: "fastMode", value: true },
+            { id: CURSOR_SDK_MAX_MODE_OPTION_ID, value: true },
+          ],
+        },
+        catalog,
+      ),
+    ).toEqual({
+      id: "composer-2",
+      params: [{ id: "fast", value: "true" }],
     });
   });
 });
