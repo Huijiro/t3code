@@ -92,6 +92,30 @@ const sdkParameterizedModel = {
   ],
 } satisfies SDKModel;
 
+const sdkOptionalMaxModeModel = {
+  id: "composer-2",
+  displayName: "Composer 2",
+  parameters: [
+    {
+      id: "fast",
+      displayName: "Fast",
+      values: [{ value: "false" }, { value: "true", displayName: "Fast" }],
+    },
+  ],
+  variants: [
+    {
+      displayName: "Composer 2",
+      isDefault: true,
+      params: [{ id: "fast", value: "false" }],
+    },
+    {
+      displayName: "Composer 2 Max",
+      isMaxMode: true,
+      params: [{ id: "fast", value: "false" }],
+    },
+  ],
+} satisfies SDKModel;
+
 describe("buildCursorProviderSnapshot", () => {
   it("downgrades ready status to warning when SDK model discovery returns no models", () => {
     expect(
@@ -129,6 +153,17 @@ describe("Cursor SDK model discovery", () => {
           ]),
           booleanDescriptor("fastMode", "Fast", false),
           booleanDescriptor("thinking", "Thinking", true),
+        ],
+      }),
+    );
+  });
+
+  it("adds a Max Mode boolean when the catalog offers optional max mode", () => {
+    expect(buildCursorCapabilitiesFromSdkModel(sdkOptionalMaxModeModel)).toEqual(
+      createModelCapabilities({
+        optionDescriptors: [
+          booleanDescriptor("fastMode", "Fast", false),
+          booleanDescriptor("maxMode", "Max Mode", false),
         ],
       }),
     );

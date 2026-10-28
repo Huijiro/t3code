@@ -13,7 +13,12 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 
-import { cursorSdkParameterPriority, cursorSdkProviderOptionId } from "./sdkModel.ts";
+import {
+  CURSOR_SDK_MAX_MODE_OPTION_ID,
+  cursorSdkModelOffersOptionalMaxMode,
+  cursorSdkParameterPriority,
+  cursorSdkProviderOptionId,
+} from "./sdkModel.ts";
 import {
   buildBooleanOptionDescriptor,
   buildSelectOptionDescriptor,
@@ -158,6 +163,16 @@ export function buildCursorCapabilitiesFromSdkModel(model: SDKModel): ModelCapab
           ...entry,
           ...(entry.value === defaultValue ? { isDefault: true } : {}),
         })),
+      }),
+    );
+  }
+
+  if (cursorSdkModelOffersOptionalMaxMode(model)) {
+    optionDescriptors.push(
+      buildBooleanOptionDescriptor({
+        id: CURSOR_SDK_MAX_MODE_OPTION_ID,
+        label: "Max Mode",
+        currentValue: false,
       }),
     );
   }
