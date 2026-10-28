@@ -59,8 +59,8 @@ on web and desktop and **Settings → Environments** on mobile. A loopback addre
 such as `127.0.0.1` reaches only the device opening the link.
 
 If your HTTPS endpoint uses a certificate from your own certificate authority,
-install that CA in Android's security settings as a user certificate; the Android
-app then trusts it.
+install that CA on Android as a **CA certificate** in its security settings; the
+Android app then trusts it.
 
 Pairing authorizes that device for future connections. Use a fresh one-time link
 for each new device; you do not need the original token to reconnect. Links
