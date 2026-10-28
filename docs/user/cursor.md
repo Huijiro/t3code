@@ -17,7 +17,7 @@ not expose yet.
 
 Custom Cursor MCP servers and plugins are not configured in T3 Code. They load from the environment
 machine's Cursor config when the agent opens: project `.cursor/mcp.json`, user `~/.cursor/mcp.json`,
-and installed plugins under `~/.cursor/plugins`, via the SDK `settingSources` layers. Plugin tools
+and installed plugins under `~/.cursor/plugins`. Plugin tools
 can appear without a login; OAuth MCP servers still need credentials. Run `agent mcp login <server>`
 with the cwd set to the T3 project root (tokens land in
 `~/.cursor/projects/<folder-slug>/mcp-auth.json`). Cursor desktop Connections auth does not write
@@ -50,8 +50,8 @@ The adapter supports:
 - thread-scoped T3 Code MCP tools alongside ambient Cursor MCP/plugins from disk;
 - image attachments;
 - interruption, queued app messages, and orchestrator-owned interrupt/restart steering;
-- native conversation compaction through `agent.summarize()`;
-- provider conversation snapshots through `Agent.messages.list()`;
+- native conversation compaction;
+- provider conversation snapshots;
 - Cursor `task` subagents, projected as read-only child app threads with their tool activity and
   final result.
 
