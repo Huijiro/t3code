@@ -2800,6 +2800,11 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                 modelSelection: turnInput.modelSelection,
                 runtimePolicy: turnInput.runtimePolicy,
               });
+              yield* Ref.set(told, {
+                agent: agent.nativeThreadId,
+                orchestration: false,
+                device: false,
+              });
               const pendingUpdates: Array<InteractionUpdate> = [];
               let context: ActiveCursorTurn | null = null;
               const sdkRun = yield* agent.session

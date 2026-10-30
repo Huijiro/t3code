@@ -686,6 +686,20 @@ describe("CursorAdapterV2", () => {
               agentId: "native-cursor-device",
               listMessages: Effect.succeed([]),
               close: Effect.void,
+              summarize: () =>
+                Effect.succeed({
+                  agentId: "native-cursor-device",
+                  runId: "native-cursor-summarize",
+                  wait: Effect.succeed({
+                    id: "native-cursor-summarize",
+                    requestId: "native-summarize-request",
+                    status: "finished" as const,
+                    model: { id: "composer-2.5" },
+                    durationMs: 1,
+                    result: "summary",
+                  }),
+                  cancel: Effect.void,
+                }),
               send: (input) =>
                 Effect.sync(() => {
                   sentMessages.push(
@@ -1293,6 +1307,20 @@ describe("CursorAdapterV2", () => {
               agentId: "native-cursor-task-ls",
               listMessages: Effect.succeed([]),
               close: Effect.void,
+              summarize: () =>
+                Effect.succeed({
+                  agentId: "native-cursor-task-ls",
+                  runId: "native-cursor-summarize",
+                  wait: Effect.succeed({
+                    id: "native-cursor-summarize",
+                    requestId: "native-summarize-request",
+                    status: "finished" as const,
+                    model: { id: "composer-2.5" },
+                    durationMs: 1,
+                    result: "summary",
+                  }),
+                  cancel: Effect.void,
+                }),
               send: (input) =>
                 Effect.gen(function* () {
                   const args = {
