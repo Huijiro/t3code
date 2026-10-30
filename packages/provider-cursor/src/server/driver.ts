@@ -169,7 +169,6 @@ export const CursorDriver: ProviderDriver<
     let catalogSdkModels: ReadonlyArray<SDKModel> = [];
     const orchestrationAdapter = yield* makeCursorAdapterV2({
       instanceId,
-      settings: effectiveConfig,
       environment: processEnv,
       getModels: () => catalogModels,
       getSdkModels: () => catalogSdkModels,

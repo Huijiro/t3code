@@ -1,6 +1,6 @@
 import { useEvent } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { AppActivityIndicator } from "./ui/AppActivityIndicator";
@@ -28,7 +28,7 @@ function LoadedMediaVideo(props: {
     player.staysActiveInBackground = false;
     player.bufferOptions = { preferredForwardBufferDuration: 5 };
   });
-  const playback = useMemo(() => createAudioPlaybackSession(player, true), [player]);
+  const playback = createAudioPlaybackSession(player, true);
   const { active, fullscreen, createPlayRequest, onFullscreenEnter, onFullscreenExit } =
     useMediaVideoPlayback(player, props, playback);
   const previousPlaybackRequested = useRef(false);
@@ -140,6 +140,7 @@ interface MediaVideoPlayerProps {
   readonly paused?: boolean;
   readonly onPlaybackStart?: () => void;
   readonly actionsSource?: MediaActionsSource;
+  readonly borderRadius?: number;
 }
 
 function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
@@ -152,7 +153,10 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
     <View
       collapsable={false}
       className="overflow-hidden rounded-[10px] bg-black"
-      style={props.expanded ? { flex: 1 } : { width: "100%", maxWidth: 480, aspectRatio: 16 / 9 }}
+      style={[
+        props.expanded ? { flex: 1 } : { width: "100%", maxWidth: 480, aspectRatio: 16 / 9 },
+        props.borderRadius === undefined ? null : { borderRadius: props.borderRadius },
+      ]}
     >
       {playbackUri ? (
         <LoadedMediaVideo
