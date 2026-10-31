@@ -214,6 +214,11 @@ import {
   PullRequestUpdateInput,
 } from "./pullRequest.ts";
 import {
+  RepoReferenceSearchError,
+  RepoReferenceSearchInput,
+  RepoReferenceSearchResult,
+} from "./repoReference.ts";
+import {
   RelayClientInstallFailedError,
   RelayClientInstallProgressEventSchema,
   RelayClientStatusSchema,
@@ -548,6 +553,7 @@ export const WS_METHODS = {
 
   pullRequestsList: "pullRequests.list",
   pullRequestsListStats: "pullRequests.listStats",
+  repoReferencesSearch: "repoReferences.search",
   pullRequestsFilterOptions: "pullRequests.filterOptions",
   pullRequestsSummary: "pullRequests.summary",
   pullRequestsRouting: "pullRequests.routing",
@@ -990,6 +996,12 @@ const WsPullRequestsListRpc = Rpc.make(WS_METHODS.pullRequestsList, {
   payload: PullRequestListInput,
   success: PullRequestListResult,
   error: PullRequestRpcError,
+});
+
+const WsRepoReferencesSearchRpc = Rpc.make(WS_METHODS.repoReferencesSearch, {
+  payload: RepoReferenceSearchInput,
+  success: RepoReferenceSearchResult,
+  error: RepoReferenceSearchError,
 });
 
 // GitHub line counts cost 40-60% of the listing read; fetch separately so rows arrive first.
@@ -2019,6 +2031,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsCloudGetRelayClientStatusRpc,
   WsCloudInstallRelayClientRpc,
   WsPullRequestsListRpc,
+  WsRepoReferencesSearchRpc,
   WsPullRequestsListStatsRpc,
   WsPullRequestsFilterOptionsRpc,
   WsPullRequestsSummaryRpc,

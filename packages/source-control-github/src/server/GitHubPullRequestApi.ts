@@ -113,8 +113,17 @@ import {
 } from "./gitHubPullRequestJson.ts";
 import type {
   ProviderChangeRequestSummary,
+  ProviderHashReference,
+  ProviderHashReferencePage,
   ProviderListCursor,
 } from "@t3tools/source-control-core/server/PullRequestProvider";
+import {
+  decodeDiscussionDetailBody,
+  decodeDiscussionListBody,
+  decodeIssueDetailBody,
+  decodeIssueSearchBody,
+  hashReferenceSearchPaths,
+} from "./gitHubHashReferences.ts";
 
 export class GitHubPullRequestReadError extends Schema.TaggedError<GitHubPullRequestReadError>()(
   "GitHubPullRequestReadError",
@@ -450,6 +459,14 @@ export class GitHubPullRequestApi extends Context.Service<
       readonly cursor?: ProviderListCursor | undefined;
       readonly filters?: PullRequestListFilters | undefined;
     }) => Effect.Effect<GitHubPullRequestSearchBatch, GitHubPullRequestApiError>;
+
+    readonly searchHashReferences: (input: {
+      readonly cwd: string;
+      readonly host: string;
+      readonly repository: string;
+      readonly query?: string | undefined;
+      readonly limit: number;
+    }) => Effect.Effect<ProviderHashReferencePage, GitHubPullRequestApiError>;
 
     readonly listPullRequestStats: (input: {
       readonly cwd: string;
@@ -1936,6 +1953,95 @@ export const make = Effect.gen(function* () {
             };
           }),
         );
+    }),
+
+    searchHashReferences: Effect.fn("GitHubPullRequestApi.searchHashReferences")(function* (input) {
+      const paths = hashReferenceSearchPaths(input);
+      if (paths === null) {
+        return yield* new GitHubRepositorySelectorError({
+          cwd: input.cwd,
+          operation: "searchHashReferences",
+        });
+      }
+      const query = input.query?.trim() ?? "";
+      const ignoreNotFound = <A>(effect: Effect.Effect<A, GitHubPullRequestApiError>) =>
+        effect.pipe(
+          Effect.catchTags({
+            GitHubApiNotFoundError: () => Effect.succeed(null as A | null),
+          }),
+        );
+
+      if (
+        paths.number !== null &&
+        paths.issueDetailPath !== null &&
+        paths.discussionDetailPath !== null
+      ) {
+        const [issueBody, discussionBody] = yield* Effect.all(
+          [
+            ignoreNotFound(
+              api
+                .rest({
+                  host: input.host,
+                  operation: "searchHashReferences",
+                  path: paths.issueDetailPath,
+                })
+                .pipe(Effect.map((response) => response.body)),
+            ),
+            ignoreNotFound(
+              api
+                .rest({
+                  host: input.host,
+                  operation: "searchHashReferences",
+                  path: paths.discussionDetailPath,
+                })
+                .pipe(Effect.map((response) => response.body)),
+            ),
+          ],
+          { concurrency: 2 },
+        );
+        const items: ProviderHashReference[] = [];
+        if (issueBody !== null) {
+          const issue = decodeIssueDetailBody(issueBody);
+          if (issue !== null) items.push(issue);
+        }
+        if (discussionBody !== null) {
+          const discussion = decodeDiscussionDetailBody(discussionBody);
+          if (discussion !== null) items.push(discussion);
+        }
+        return { items };
+      }
+
+      const [issueBody, discussionBody] = yield* Effect.all(
+        [
+          paths.issueSearchPath === null
+            ? Effect.succeed(null as string | null)
+            : api
+                .rest({
+                  host: input.host,
+                  operation: "searchHashReferences",
+                  path: paths.issueSearchPath,
+                })
+                .pipe(Effect.map((response) => response.body)),
+          ignoreNotFound(
+            api
+              .rest({
+                host: input.host,
+                operation: "searchHashReferences",
+                path: paths.discussionListPath,
+              })
+              .pipe(Effect.map((response) => response.body)),
+          ),
+        ],
+        { concurrency: 2 },
+      );
+      const issues = issueBody === null ? [] : decodeIssueSearchBody(issueBody);
+      const discussions =
+        discussionBody === null ? [] : decodeDiscussionListBody(discussionBody, query);
+      return {
+        items: [...issues, ...discussions]
+          .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+          .slice(0, input.limit),
+      };
     }),
 
     listPullRequestStats: Effect.fn("GitHubPullRequestApi.listPullRequestStats")(
