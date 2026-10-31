@@ -3726,7 +3726,10 @@ export const make = Effect.gen(function* () {
         ? Number(query)
         : null;
 
-    const pullRequests = yield* project.api
+    const providerErrorMessage = (error: unknown, fallback: string) =>
+      isPullRequestProviderError(error) ? error.detail : fallback;
+
+    const listedPullRequests = yield* project.api
       .listChangeRequests({
         cwd: project.project.workspaceRoot,
         repository: project.repository,
@@ -3738,12 +3741,20 @@ export const make = Effect.gen(function* () {
         ...(query.length === 0 || number !== null ? {} : { query }),
       })
       .pipe(
-        Effect.map((page) => page.items),
-        Effect.orElseSucceed(() => [] as ReadonlyArray<ProviderChangeRequest>),
+        Effect.map((page) => ({
+          items: page.items,
+          error: null as string | null,
+        })),
+        Effect.catch((error) =>
+          Effect.succeed({
+            items: [] as ReadonlyArray<ProviderChangeRequest>,
+            error: providerErrorMessage(error, "Pull requests could not be read."),
+          }),
+        ),
       );
 
     const exactPullRequestMissing =
-      number !== null && !pullRequests.some((item) => item.number === number);
+      number !== null && !listedPullRequests.items.some((item) => item.number === number);
     const exactPullRequest = exactPullRequestMissing
       ? yield* project.api
           .getChangeRequest({
@@ -3753,10 +3764,22 @@ export const make = Effect.gen(function* () {
             number,
           })
           .pipe(
-            Effect.map((item) => [item] as const),
-            Effect.orElseSucceed(() => [] as const),
+            Effect.map((item) => ({
+              items: [item] as const,
+              error: null as string | null,
+            })),
+            Effect.catch((error) =>
+              Effect.succeed({
+                items: [] as const,
+                // Missing is expected when `#N` is an issue or discussion, not a PR.
+                error:
+                  isPullRequestProviderError(error) && error.reason === "not-found"
+                    ? null
+                    : providerErrorMessage(error, "Pull request could not be read."),
+              }),
+            ),
           )
-      : [];
+      : { items: [] as const, error: null as string | null };
 
     const hashPage =
       project.api.searchHashReferences === undefined
@@ -3774,28 +3797,27 @@ export const make = Effect.gen(function* () {
               Effect.catch((error) =>
                 Effect.succeed({
                   items: [] as const,
-                  error: isPullRequestProviderError(error)
-                    ? error.detail
-                    : "References could not be read.",
+                  error: providerErrorMessage(error, "References could not be read."),
                 }),
               ),
             );
 
-    const pullRequestEntries: RepoReferenceEntry[] = [...exactPullRequest, ...pullRequests].map(
-      (item) => ({
-        kind: "pull-request" as const,
-        projectId: project.project.id,
-        repository: project.repository,
-        number: item.number,
-        title: item.title,
-        url: item.url,
-        headBranch: item.headBranch,
-        baseBranch: item.baseBranch,
-        state: item.state,
-        isDraft: item.isDraft,
-        updatedAt: item.updatedAt,
-      }),
-    );
+    const pullRequestEntries: RepoReferenceEntry[] = [
+      ...exactPullRequest.items,
+      ...listedPullRequests.items,
+    ].map((item) => ({
+      kind: "pull-request" as const,
+      projectId: project.project.id,
+      repository: project.repository,
+      number: item.number,
+      title: item.title,
+      url: item.url,
+      headBranch: item.headBranch,
+      baseBranch: item.baseBranch,
+      state: item.state,
+      isDraft: item.isDraft,
+      updatedAt: item.updatedAt,
+    }));
 
     const otherEntries: RepoReferenceEntry[] = hashPage.items.map((item) =>
       item.kind === "issue"
@@ -3849,9 +3871,13 @@ export const make = Effect.gen(function* () {
       )
       .slice(0, limit);
 
+    const errors = [listedPullRequests.error, exactPullRequest.error, hashPage.error].flatMap(
+      (message) => (message === null ? [] : [{ message }]),
+    );
+
     return {
       entries,
-      errors: hashPage.error === null ? [] : [{ message: hashPage.error }],
+      errors,
     };
   });
 

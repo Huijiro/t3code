@@ -356,7 +356,10 @@ export function useComposerMenuItems({
       if (pullRequestProjectId === null || pullRequestRepository === null) {
         return "References are not available for this project.";
       }
-      if (hashReferenceLookup.error !== null) {
+      if (
+        hashReferenceLookup.error !== null ||
+        (hashReferenceLookup.data?.errors.length ?? 0) > 0
+      ) {
         return "References could not be read for this project.";
       }
       return composerTrigger?.query

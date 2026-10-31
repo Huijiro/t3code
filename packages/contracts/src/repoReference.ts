@@ -69,7 +69,7 @@ export type RepoReferenceSearchInput = typeof RepoReferenceSearchInput.Type;
 
 export const RepoReferenceSearchResult = Schema.Struct({
   entries: Schema.Array(RepoReferenceEntry),
-  /** Hosts that could not contribute issue/discussion rows; PRs may still be present. */
+  /** Partial provider failures; other reference kinds may still be present. */
   errors: Schema.Array(
     Schema.Struct({
       message: TrimmedNonEmptyString,
